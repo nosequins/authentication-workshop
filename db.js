@@ -3,6 +3,8 @@ const { STRING } = Sequelize;
 const config = {
   logging: false
 };
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 if(process.env.LOGGING){
   delete config.logging;
@@ -16,7 +18,8 @@ const User = conn.define('user', {
 
 User.byToken = async(token)=> {
   try {
-    const user = await User.findByPk(token);
+    const {id} = await jwt.verify(token, process.env.JWT);
+    const user = await User.findByPk(id);
     if(user){
       return user;
     }
@@ -39,12 +42,16 @@ User.authenticate = async({ username, password })=> {
     }
   });
   if(user){
-    return user.id;
+    return jwt.sign({id: user.id}, process.env.JWT);
   }
   const error = Error('bad credentials');
   error.status = 401;
   throw error;
 };
+User.addHook("beforeCreate",async function(user){
+  user.password= await bcrypt.hash(user.password,10);
+  
+})
 
 const syncAndSeed = async()=> {
   await conn.sync({ force: true });
